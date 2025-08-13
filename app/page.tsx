@@ -168,7 +168,7 @@ export default function HomePage() {
 
     try {
       console.log(`Polling status for job: ${jobId}`)
-      const response = await fetch(`/api/status/${jobId}`)
+      const response = await fetch(`https://api.runpod.ai/v2/2avss4yt186a6m/status/${jobId}`)
 
       if (response.status === 404) {
         const data = await response.json()
