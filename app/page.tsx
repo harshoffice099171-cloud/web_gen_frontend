@@ -89,6 +89,25 @@ export default function HomePage() {
     }
   }
 
+  const refreshSupabaseData = async () => {
+    try {
+      const supabaseJobs = await fetchSupabaseJobs()
+
+      setJobs((prevJobs) => {
+        // Keep localStorage jobs and replace Supabase jobs with fresh data
+        const localStorageJobs = prevJobs.filter((job) => job.source === "localStorage")
+        const localJobIds = new Set(localStorageJobs.map((job) => job.id))
+
+        // Add Supabase jobs that don't conflict with localStorage jobs
+        const filteredSupabaseJobs = supabaseJobs.filter((supabaseJob) => !localJobIds.has(supabaseJob.id))
+
+        return [...localStorageJobs, ...filteredSupabaseJobs]
+      })
+    } catch (error) {
+      console.error("Error refreshing Supabase data:", error)
+    }
+  }
+
   useEffect(() => {
     const loadJobs = async () => {
       setIsLoading(true)
@@ -212,6 +231,10 @@ export default function HomePage() {
       if (isJobComplete) {
         setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId))
         console.log(`Job ${jobId} completed with status ${data.status}, removed from localStorage`)
+
+        setTimeout(() => {
+          refreshSupabaseData()
+        }, 2000) // Small delay to allow backend to save the completed job
       } else {
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
