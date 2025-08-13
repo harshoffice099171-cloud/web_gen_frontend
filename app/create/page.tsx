@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, ArrowLeft, Loader2, Play, Pause } from 'lucide-react'
+import { Upload, ArrowLeft, Loader2, Play } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -35,7 +35,7 @@ const VIDEO_OPTIONS = [
     name: "Sneha",
     path: "https://files2.heygen.ai/avatar/v3/83e6f555e8664302a6e7a37fe20258db/full/2.2/preview_video_target.mp4",
   },
-   {
+  {
     id: "presenter_4",
     name: "Kairoan",
     path: "https://files2.heygen.ai/avatar/v3/6674b94a7a75429a9e11990d23736ed5/full/2.2/preview_video_target.mp4",
@@ -74,7 +74,7 @@ export default function CreatePage() {
     const file = e.target.files?.[0]
     if (file) {
       setFormData((prev) => ({ ...prev, [field]: file }))
-      
+
       // Create preview URL for uploaded video
       if (field === "inputVideo") {
         // Clean up previous URL to prevent memory leaks
@@ -89,20 +89,19 @@ export default function CreatePage() {
     }
   }
 
-const handleVideoSelect = (videoId: string) => {
-  console.log("Video selected:", videoId) // Debug log
-  setFormData((prev) => ({ ...prev, selectedVideoId: videoId }))
-  
-  // Clear uploaded video when selecting from dropdown
-  if (videoId) {
-    // Clean up previous uploaded video URL
-    if (uploadedVideoUrl) {
-      URL.revokeObjectURL(uploadedVideoUrl)
+  const handleVideoSelect = (videoId: string) => {
+    setFormData((prev) => ({ ...prev, selectedVideoId: videoId }))
+
+    // Clear uploaded video when selecting from dropdown
+    if (videoId) {
+      // Clean up previous uploaded video URL
+      if (uploadedVideoUrl) {
+        URL.revokeObjectURL(uploadedVideoUrl)
+      }
+      setUploadedVideoUrl(null)
+      setFormData((prev) => ({ ...prev, inputVideo: null }))
     }
-    setUploadedVideoUrl(null)
-    setFormData((prev) => ({ ...prev, inputVideo: null }))
   }
-}
 
   const toggleVideoPlayback = (videoElement: HTMLVideoElement) => {
     if (videoElement.paused) {
@@ -114,36 +113,27 @@ const handleVideoSelect = (videoId: string) => {
     }
   }
 
-const getPreviewVideoUrl = () => {
-  console.log("Getting preview URL:", {
-    hasUploadedFile: !!formData.inputVideo,
-    hasUploadedUrl: !!uploadedVideoUrl,
-    selectedVideoId: formData.selectedVideoId
-  })
-  
-  // If there's an uploaded video file, use that
-  if (formData.inputVideo && uploadedVideoUrl) {
-    console.log("Using uploaded video URL:", uploadedVideoUrl)
-    return uploadedVideoUrl
+  const getPreviewVideoUrl = () => {
+    // If there's an uploaded video file, use that
+    if (formData.inputVideo && uploadedVideoUrl) {
+      return uploadedVideoUrl
+    }
+
+    // Otherwise, if there's a selected video from dropdown, use that
+    if (formData.selectedVideoId && !formData.inputVideo) {
+      const selectedVideo = VIDEO_OPTIONS.find((v) => v.id === formData.selectedVideoId)
+      return selectedVideo?.path || null
+    }
+
+    return null
   }
-  
-  // Otherwise, if there's a selected video from dropdown, use that
-  if (formData.selectedVideoId && !formData.inputVideo) {
-    const selectedVideo = VIDEO_OPTIONS.find(v => v.id === formData.selectedVideoId)
-    console.log("Using selected video:", selectedVideo?.path)
-    return selectedVideo?.path || null
-  }
-  
-  console.log("No video URL available")
-  return null
-}
 
   const getPreviewVideoName = () => {
     if (formData.inputVideo) {
       return formData.inputVideo.name
     }
     if (formData.selectedVideoId) {
-      const selectedVideo = VIDEO_OPTIONS.find(v => v.id === formData.selectedVideoId)
+      const selectedVideo = VIDEO_OPTIONS.find((v) => v.id === formData.selectedVideoId)
       return selectedVideo?.name || "Selected Video"
     }
     return "No video selected"
@@ -249,7 +239,6 @@ const getPreviewVideoUrl = () => {
         alert("Failed to create job. Please try again.")
       }
     } catch (error) {
-      console.error("Error generating webinar:", error)
       alert("An error occurred. Please try again.")
     } finally {
       setIsGenerating(false)
@@ -319,10 +308,7 @@ const getPreviewVideoUrl = () => {
               {/* Video Input */}
               <div className="space-y-2">
                 <Label>Video Input *</Label>
-                <Select
-                  value={formData.selectedVideoId}
-                  onValueChange={handleVideoSelect}
-                >
+                <Select value={formData.selectedVideoId} onValueChange={handleVideoSelect}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select video input" />
                   </SelectTrigger>
@@ -439,9 +425,6 @@ const getPreviewVideoUrl = () => {
                       onPlay={() => setIsVideoPlaying(true)}
                       onPause={() => setIsVideoPlaying(false)}
                       onEnded={() => setIsVideoPlaying(false)}
-                      onLoadStart={() => console.log("Video loading started")}
-                      onLoadedData={() => console.log("Video loaded successfully")}
-                      onError={(e) => console.error("Video error:", e)}
                     >
                       <source src={getPreviewVideoUrl()!} type="video/mp4" />
                       Your browser does not support the video tag.

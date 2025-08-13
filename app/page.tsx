@@ -92,28 +92,21 @@ export default function HomePage() {
 
   useEffect(() => {
     const loadJobs = async () => {
-      console.log("=== LOADING JOBS ===")
-      console.log("Timestamp:", new Date().toISOString())
       setIsLoading(true)
 
       // Load current jobs from localStorage
       const localStorageJobs: Job[] = []
       if (typeof window !== "undefined") {
         const savedJobs = localStorage.getItem("webinar-jobs")
-        console.log("Raw localStorage data:", savedJobs)
         if (savedJobs) {
           try {
             const parsedJobs = JSON.parse(savedJobs)
             localStorageJobs.push(...parsedJobs.map((job: any) => ({ ...job, source: "localStorage" })))
-            console.log("Parsed localStorage jobs:", localStorageJobs.length)
-          } catch (error) {
-            console.error("Error parsing saved jobs:", error)
-          }
+          } catch (error) {}
         }
       }
 
       const supabaseJobs = await fetchSupabaseJobs()
-      console.log("Fetched Supabase jobs:", supabaseJobs.length)
 
       // Combine and deduplicate jobs (localStorage takes precedence)
       const allJobs = [...localStorageJobs]
@@ -125,61 +118,31 @@ export default function HomePage() {
         }
       })
 
-      console.log("Total combined jobs:", allJobs.length)
-      console.log(
-        "Jobs by status:",
-        allJobs.reduce(
-          (acc, job) => {
-            acc[job.status] = (acc[job.status] || 0) + 1
-            return acc
-          },
-          {} as Record<string, number>,
-        ),
-      )
-
       setJobs(allJobs)
       setIsLoading(false)
 
       // Start polling for localStorage jobs that are in progress
-      console.log("=== INITIAL POLLING SETUP ===")
       localStorageJobs.forEach((job) => {
         if (job.status === "IN_QUEUE" || job.status === "IN_PROGRESS") {
-          console.log(`Scheduling initial poll for job ${job.id} with status ${job.status}`)
-          setTimeout(() => {
-            console.log(`Executing initial poll for job ${job.id}`)
-            pollJobStatus(job.id)
-          }, 1000)
-        } else {
-          console.log(`Skipping initial poll for job ${job.id} with status ${job.status}`)
+          setTimeout(() => pollJobStatus(job.id), 1000)
         }
       })
-      console.log("=== INITIAL POLLING SETUP COMPLETE ===")
     }
 
     loadJobs()
   }, [])
 
   useEffect(() => {
-    console.log("=== AUTO-START POLLING EFFECT ===")
-    console.log("isLoading:", isLoading, "jobs.length:", jobs.length)
-
     if (!isLoading && jobs.length > 0) {
-      console.log("Checking jobs for auto-start polling...")
       jobs.forEach((job) => {
         if (job.source === "localStorage" && (job.status === "IN_QUEUE" || job.status === "IN_PROGRESS")) {
           console.log(`Auto-starting polling for job ${job.id} with status ${job.status}`)
-          const delay = Math.random() * 2000
-          console.log(`Scheduling auto-start poll for job ${job.id} with delay ${delay}ms`)
           setTimeout(() => {
-            console.log(`Executing auto-start poll for job ${job.id}`)
             pollJobStatus(job.id)
-          }, delay)
-        } else {
-          console.log(`Skipping auto-start for job ${job.id}: source=${job.source}, status=${job.status}`)
+          }, Math.random() * 2000)
         }
       })
     }
-    console.log("=== AUTO-START POLLING EFFECT COMPLETE ===")
   }, [isLoading, jobs.length])
 
   useEffect(() => {
@@ -187,42 +150,23 @@ export default function HomePage() {
       if (typeof window !== "undefined") {
         const localStorageJobs = jobs.filter((job) => job.source === "localStorage")
         localStorage.setItem("webinar-jobs", JSON.stringify(localStorageJobs))
-        console.log("Saved jobs to localStorage:", localStorageJobs.length)
       }
-    } catch (error) {
-      console.error("Error saving jobs to localStorage:", error)
-    }
+    } catch (error) {}
   }, [jobs])
 
   const pollJobStatus = async (jobId: string) => {
-    console.log("=== POLL JOB STATUS CALLED ===")
-    console.log("Timestamp:", new Date().toISOString())
-    console.log("Job ID:", jobId)
-    console.log("Current pollingJobs Set:", Array.from(pollingJobs))
-
     if (pollingJobs.has(jobId)) {
-      console.log(`Already polling job ${jobId}, skipping...`)
       return
     }
 
-    console.log(`Adding job ${jobId} to polling set`)
     setPollingJobs((prev) => new Set(prev).add(jobId))
 
     try {
-      console.log(`=== MAKING API CALL FOR JOB ${jobId} ===`)
-      console.log("API URL:", `/api/status/${jobId}`)
-      console.log("Fetch timestamp:", new Date().toISOString())
-
+      console.log(`Polling status for job: ${jobId}`)
       const response = await fetch(`/api/status/${jobId}`)
-
-      console.log("=== API RESPONSE RECEIVED ===")
-      console.log("Response status:", response.status)
-      console.log("Response ok:", response.ok)
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()))
 
       if (response.status === 404) {
         const data = await response.json()
-        console.log("Job not found response:", data)
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
             job.id === jobId
@@ -241,7 +185,6 @@ export default function HomePage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error(`Error polling job ${jobId}:`, errorData)
 
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
@@ -259,10 +202,6 @@ export default function HomePage() {
       }
 
       const data = await response.json()
-      console.log("=== SUCCESSFUL API RESPONSE ===")
-      console.log(`Job ${jobId} status:`, data.status)
-      console.log(`Job ${jobId} output:`, data.output)
-      console.log("Full response data:", data)
 
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
@@ -278,26 +217,16 @@ export default function HomePage() {
         ),
       )
 
-      console.log("=== CHECKING IF SHOULD CONTINUE POLLING ===")
-      console.log("Current status:", data.status)
-      const shouldContinue = data.status === "IN_QUEUE" || data.status === "IN_PROGRESS"
-      console.log("Should continue polling:", shouldContinue)
-
-      if (shouldContinue) {
-        console.log(`Job ${jobId} still in progress (${data.status}), scheduling next poll in 5 seconds...`)
+      if (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS") {
         setTimeout(() => {
-          console.log(`Removing job ${jobId} from polling set for next iteration`)
           setPollingJobs((prev) => {
             const newSet = new Set(prev)
             newSet.delete(jobId)
             return newSet
           })
-          console.log(`Starting next poll iteration for job ${jobId}`)
           pollJobStatus(jobId)
         }, 5000)
       } else {
-        console.log(`Job ${jobId} completed with status: ${data.status}`)
-        console.log(`Removing job ${jobId} from polling set (final)`)
         setPollingJobs((prev) => {
           const newSet = new Set(prev)
           newSet.delete(jobId)
@@ -305,14 +234,6 @@ export default function HomePage() {
         })
       }
     } catch (error) {
-      console.error("=== POLLING ERROR ===")
-      console.error(`Error polling job status for ${jobId}:`, error)
-      console.error("Error details:", {
-        name: error instanceof Error ? error.name : "Unknown",
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : "No stack trace",
-      })
-
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
           job.id === jobId
@@ -325,28 +246,18 @@ export default function HomePage() {
             : job,
         ),
       )
-
-      console.log(`Removing job ${jobId} from polling set due to error`)
       setPollingJobs((prev) => {
         const newSet = new Set(prev)
         newSet.delete(jobId)
         return newSet
       })
     }
-
-    console.log("=== POLL JOB STATUS COMPLETE ===")
   }
 
   const handleRefreshStatus = (jobId: string) => {
-    console.log("=== MANUAL REFRESH TRIGGERED ===")
-    console.log("Job ID:", jobId)
     const job = jobs.find((j) => j.id === jobId)
-    console.log("Job found:", !!job, "Job source:", job?.source)
     if (job?.source === "localStorage") {
-      console.log("Starting manual poll for job:", jobId)
       pollJobStatus(jobId)
-    } else {
-      console.log("Skipping manual poll - not a localStorage job")
     }
   }
 
@@ -441,8 +352,6 @@ export default function HomePage() {
 
       console.log("Download initiated successfully")
     } catch (error) {
-      console.error("Error downloading file:", error)
-
       try {
         console.log("Falling back to direct S3 URL download")
         const link = document.createElement("a")
