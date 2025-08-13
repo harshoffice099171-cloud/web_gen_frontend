@@ -147,7 +147,11 @@ export default function HomePage() {
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
-        const localStorageJobs = jobs.filter((job) => job.source === "localStorage")
+        const localStorageJobs = jobs.filter((job) => {
+          if (job.source !== "localStorage") return false
+          const finalStatuses = ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"]
+          return !finalStatuses.includes(job.status?.toUpperCase())
+        })
         localStorage.setItem("webinar-jobs", JSON.stringify(localStorageJobs))
       }
     } catch (error) {}
@@ -202,19 +206,27 @@ export default function HomePage() {
 
       const data = await response.json()
 
-      setJobs((prevJobs) =>
-        prevJobs.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                status: data.status || job.status,
-                output: data.output || job.output,
-                error: data.error || undefined,
-                message: undefined,
-              }
-            : job,
-        ),
-      )
+      const finalStatuses = ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"]
+      const isJobComplete = finalStatuses.includes(data.status?.toUpperCase())
+
+      if (isJobComplete) {
+        setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId))
+        console.log(`Job ${jobId} completed with status ${data.status}, removed from localStorage`)
+      } else {
+        setJobs((prevJobs) =>
+          prevJobs.map((job) =>
+            job.id === jobId
+              ? {
+                  ...job,
+                  status: data.status || job.status,
+                  output: data.output || job.output,
+                  error: data.error || undefined,
+                  message: undefined,
+                }
+              : job,
+          ),
+        )
+      }
 
       if (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS") {
         setTimeout(() => {
