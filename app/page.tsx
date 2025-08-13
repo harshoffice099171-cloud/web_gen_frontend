@@ -34,8 +34,7 @@ interface Job {
   }
   createdAt: string
   outputName?: string
-  error?: string
-  message?: string
+  error_message?: string
   source?: "localStorage" | "supabase"
   supabaseData?: WebinarRequest
 }
@@ -210,7 +209,7 @@ export default function HomePage() {
                 ...job,
                 status: data.status || job.status,
                 output: data.output || job.output,
-                error: undefined,
+                error: data.error || undefined,
                 message: undefined,
               }
             : job,
@@ -296,6 +295,7 @@ export default function HomePage() {
       case "not_found":
         return <AlertCircle className="h-4 w-4" />
       case "error":
+      case "failed":
         return <AlertTriangle className="h-4 w-4" />
       default:
         return null
@@ -492,15 +492,15 @@ export default function HomePage() {
                   <CardContent className="pt-0">
                     <div className="space-y-4">
                       {job.output?.stats && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                           {job.output.stats.total_slides && (
-                            <div className="text-center">
+                            <div className="text-center p-2 border rounded">
                               <div className="text-lg font-semibold text-gray-900">{job.output.stats.total_slides}</div>
                               <div className="text-xs text-gray-600">Total Slides</div>
                             </div>
                           )}
                           {job.output.stats.final_duration && (
-                            <div className="text-center">
+                            <div className="text-center p-2 border rounded">
                               <div className="text-lg font-semibold text-gray-900">
                                 {job.output.stats.final_duration}
                               </div>
@@ -508,7 +508,7 @@ export default function HomePage() {
                             </div>
                           )}
                           {job.output.stats.final_resolution && (
-                            <div className="text-center">
+                            <div className="text-center p-2 border rounded">
                               <div className="text-lg font-semibold text-gray-900">
                                 {job.output.stats.final_resolution}
                               </div>
@@ -518,7 +518,7 @@ export default function HomePage() {
                         </div>
                       )}
 
-                      {(job.status === "NOT_FOUND" || job.status === "ERROR") && (
+                      {(job.status === "NOT_FOUND" || job.status === "ERROR" || job.status === "FAILED") && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                           <div className="flex items-start gap-2">
                             {getStatusIcon(job.status)}
