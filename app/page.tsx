@@ -138,13 +138,10 @@ export default function HomePage() {
     if (!isLoading && jobs.length > 0) {
       jobs.forEach((job) => {
         if (job.source === "localStorage" && (job.status === "IN_QUEUE" || job.status === "IN_PROGRESS")) {
-          console.log(`[${new Date().toISOString()}] Auto-starting polling for job ${job.id} with status ${job.status}`)
-          setTimeout(
-            () => {
-              pollJobStatus(job.id)
-            },
-            Math.random() * 1000 + 500,
-          ) // Random delay between 500ms-1500ms
+          console.log(`Auto-starting polling for job ${job.id} with status ${job.status}`)
+          setTimeout(() => {
+            pollJobStatus(job.id)
+          }, Math.random() * 2000)
         }
       })
     }
@@ -170,27 +167,11 @@ export default function HomePage() {
     setPollingJobs((prev) => new Set(prev).add(jobId))
 
     try {
-      const statusApiUrl = `/api/status/${jobId}`
-      console.log(`[${new Date().toISOString()}] === FRONTEND POLLING START ===`)
-      console.log(`[${new Date().toISOString()}] Calling route: ${statusApiUrl}`)
-      console.log(`[${new Date().toISOString()}] Job ID: ${jobId}`)
-
-      const response = await fetch(statusApiUrl, {
-        cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      })
-
-      console.log(`[${new Date().toISOString()}] Frontend received response:`)
-      console.log(`[${new Date().toISOString()}] - Status: ${response.status}`)
-      console.log(`[${new Date().toISOString()}] - Status Text: ${response.statusText}`)
-      console.log(`[${new Date().toISOString()}] - Headers:`, Object.fromEntries(response.headers.entries()))
+      console.log(`Polling status for job: ${jobId}`)
+      const response = await fetch(`/api/status/${jobId}`)
 
       if (response.status === 404) {
         const data = await response.json()
-        console.log(`[${new Date().toISOString()}] Frontend received 404 response body:`, data)
-        console.log(`[${new Date().toISOString()}] Job ${jobId} not found in RunPod system`)
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
             job.id === jobId
@@ -203,18 +184,13 @@ export default function HomePage() {
               : job,
           ),
         )
-        setPollingJobs((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(jobId)
-          return newSet
-        })
+        console.log(`Job ${jobId} not found in RunPod system`)
         return
       }
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error(`[${new Date().toISOString()}] Frontend received error response:`, errorData)
-        console.error(`[${new Date().toISOString()}] Error polling job ${jobId}:`, errorData)
+        console.error(`Error polling job ${jobId}:`, errorData)
 
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
@@ -228,61 +204,29 @@ export default function HomePage() {
               : job,
           ),
         )
-        setPollingJobs((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(jobId)
-          return newSet
-        })
         return
       }
 
       const data = await response.json()
-      console.log(`[${new Date().toISOString()}] === FRONTEND RECEIVED RESPONSE ===`)
-      console.log(`[${new Date().toISOString()}] Full response body:`, JSON.stringify(data, null, 2))
-      console.log(`[${new Date().toISOString()}] Job ${jobId} response details:`)
-      console.log(`[${new Date().toISOString()}] - Raw status: "${data.status}"`)
-      console.log(`[${new Date().toISOString()}] - Status type: ${typeof data.status}`)
-      console.log(`[${new Date().toISOString()}] - Has output: ${!!data.output}`)
-      console.log(`[${new Date().toISOString()}] - Has final video: ${!!data.output?.final_video_s3_url}`)
-      console.log(`[${new Date().toISOString()}] - Has error: ${!!data.error}`)
-      console.log(`[${new Date().toISOString()}] - Error message: ${data.error || "none"}`)
+      console.log(`Job ${jobId} status:`, data.status)
+      console.log(`Job ${jobId} output:`, data.output)
 
-      const normalizedStatus = data.status ? data.status.toString().toUpperCase() : "UNKNOWN"
-      console.log(`[${new Date().toISOString()}] Job ${jobId} normalized status: "${normalizedStatus}"`)
-
-      setJobs((prevJobs) => {
-        const updatedJobs = prevJobs.map((job) =>
+      setJobs((prevJobs) =>
+        prevJobs.map((job) =>
           job.id === jobId
             ? {
                 ...job,
-                status: normalizedStatus,
+                status: data.status || job.status,
                 output: data.output || job.output,
                 error: undefined,
                 message: undefined,
               }
             : job,
-        )
+        ),
+      )
 
-        // Log the actual status change for debugging
-        const updatedJob = updatedJobs.find((j) => j.id === jobId)
-        console.log(`[${new Date().toISOString()}] Job ${jobId} UI state updated to: "${updatedJob?.status}"`)
-
-        return updatedJobs
-      })
-
-      const shouldContinuePolling =
-        normalizedStatus === "IN_QUEUE" ||
-        normalizedStatus === "IN_PROGRESS" ||
-        normalizedStatus === "RUNNING" ||
-        normalizedStatus === "PENDING" ||
-        normalizedStatus === "QUEUED"
-
-      console.log(`[${new Date().toISOString()}] Job ${jobId} polling decision:`)
-      console.log(`[${new Date().toISOString()}] - Status: "${normalizedStatus}"`)
-      console.log(`[${new Date().toISOString()}] - Should continue polling: ${shouldContinuePolling}`)
-
-      if (shouldContinuePolling) {
-        console.log(`[${new Date().toISOString()}] Job ${jobId} still processing, scheduling next poll in 3 seconds...`)
+      if (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS") {
+        console.log(`Job ${jobId} still in progress (${data.status}), continuing to poll...`)
         setTimeout(() => {
           setPollingJobs((prev) => {
             const newSet = new Set(prev)
@@ -290,43 +234,17 @@ export default function HomePage() {
             return newSet
           })
           pollJobStatus(jobId)
-        }, 3000)
+        }, 5000)
       } else {
-        console.log(`[${new Date().toISOString()}] Job ${jobId} completed with final status: "${normalizedStatus}"`)
-        if (normalizedStatus === "FAILED") {
-          console.log(`[${new Date().toISOString()}] Job ${jobId} FAILED details:`)
-          console.log(`[${new Date().toISOString()}] - Error from output: ${data.output?.error || "none"}`)
-          console.log(`[${new Date().toISOString()}] - Error from root: ${data.error || "none"}`)
-        } else if (normalizedStatus === "COMPLETED") {
-          console.log(`[${new Date().toISOString()}] Job ${jobId} COMPLETED details:`)
-          console.log(`[${new Date().toISOString()}] - Final video URL: ${data.output?.final_video_s3_url || "none"}`)
-          console.log(`[${new Date().toISOString()}] - Success flag: ${data.output?.success}`)
-        }
-
+        console.log(`Job ${jobId} completed with status: ${data.status}`)
         setPollingJobs((prev) => {
           const newSet = new Set(prev)
           newSet.delete(jobId)
           return newSet
         })
       }
-
-      console.log(`[${new Date().toISOString()}] === FRONTEND POLLING END ===`)
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] === FRONTEND POLLING ERROR ===`)
-      console.error(`[${new Date().toISOString()}] Network error polling job ${jobId}:`, error)
-      console.error(
-        `[${new Date().toISOString()}] Error type:`,
-        error instanceof Error ? error.constructor.name : typeof error,
-      )
-      console.error(
-        `[${new Date().toISOString()}] Error message:`,
-        error instanceof Error ? error.message : String(error),
-      )
-      console.error(
-        `[${new Date().toISOString()}] Error stack:`,
-        error instanceof Error ? error.stack : "No stack trace",
-      )
-
+      console.error(`Error polling job status for ${jobId}:`, error)
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
           job.id === jobId
@@ -344,7 +262,6 @@ export default function HomePage() {
         newSet.delete(jobId)
         return newSet
       })
-      console.error(`[${new Date().toISOString()}] === FRONTEND POLLING ERROR END ===`)
     }
   }
 
@@ -373,11 +290,8 @@ export default function HomePage() {
       case "failed":
         return "bg-red-500"
       case "in_progress":
-      case "running":
         return "bg-blue-500"
       case "in_queue":
-      case "queued":
-      case "pending":
         return "bg-yellow-500"
       case "not_found":
         return "bg-orange-500"

@@ -18,42 +18,29 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     console.log("RunPod Status Endpoint:", `https://api.runpod.ai/v2/2avss4yt186a6m/status/${id}`)
     console.log("API Key Present:", !!process.env.RUNPOD_API_KEY)
 
-    const response = await fetch(`https://api.runpod.ai/v2/2avss4yt186a6m/status/${id}?t=${Date.now()}`, {
+    const response = await fetch(`https://api.runpod.ai/v2/2avss4yt186a6m/status/${id}`, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${process.env.RUNPOD_API_KEY}`,
+        "Authorization": `Bearer ${process.env.RUNPOD_API_KEY}`,
         "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
       },
-      cache: "no-store",
     })
 
     console.log("RunPod Status Response Status:", response.status)
     console.log("RunPod Status Response Headers:", Object.fromEntries(response.headers.entries()))
 
     const result = await response.json()
-    console.log("RunPod Status Response Body:", JSON.stringify(result, null, 2))
+    console.log("RunPod Status Response Body:", result)
 
     // Handle different response scenarios
     if (response.status === 404 || (result.error && result.error.includes("does not exist"))) {
       console.log("Job not found in RunPod system")
-      const notFoundResponse = NextResponse.json(
-        {
-          id: id,
-          status: "NOT_FOUND",
-          error: "Job not found in RunPod system",
-          message: "This job may have expired or was never created successfully",
-          timestamp: new Date().toISOString(),
-        },
-        { status: 404 },
-      )
-
-      notFoundResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
-      notFoundResponse.headers.set("Pragma", "no-cache")
-      notFoundResponse.headers.set("Expires", "0")
-
-      return notFoundResponse
+      return NextResponse.json({ 
+        id: id,
+        status: "NOT_FOUND", 
+        error: "Job not found in RunPod system",
+        message: "This job may have expired or was never created successfully"
+      }, { status: 404 })
     }
 
     if (!response.ok) {
@@ -62,21 +49,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         statusText: response.statusText,
         body: result,
       })
-      const errorResponse = NextResponse.json(
-        {
-          error: "Failed to get job status",
-          details: result,
-          runpodError: result.error || "Unknown error",
-          timestamp: new Date().toISOString(),
-        },
-        { status: response.status },
-      )
-
-      errorResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
-      errorResponse.headers.set("Pragma", "no-cache")
-      errorResponse.headers.set("Expires", "0")
-
-      return errorResponse
+      return NextResponse.json({ 
+        error: "Failed to get job status", 
+        details: result,
+        runpodError: result.error || "Unknown error"
+      }, { status: response.status })
     }
 
     // Extract the important information from the response
@@ -86,9 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       output: result.output || null,
       delayTime: result.delayTime,
       executionTime: result.executionTime,
-      workerId: result.workerId,
-      timestamp: new Date().toISOString(),
-      error: result.error || null,
+      workerId: result.workerId
     }
 
     console.log("Processed status response:", {
@@ -96,40 +71,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       status: statusResponse.status,
       hasOutput: !!statusResponse.output,
       hasFinalVideo: !!statusResponse.output?.final_video_s3_url,
-      finalVideoUrl: statusResponse.output?.final_video_s3_url || "not available",
-      hasError: !!statusResponse.error,
-      error: statusResponse.error,
+      finalVideoUrl: statusResponse.output?.final_video_s3_url || "not available"
     })
 
     console.log("=== STATUS API COMPLETED ===\n")
 
-    const successResponse = NextResponse.json(statusResponse)
-
-    successResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
-    successResponse.headers.set("Pragma", "no-cache")
-    successResponse.headers.set("Expires", "0")
-    successResponse.headers.set("Last-Modified", new Date().toUTCString())
-
-    return successResponse
+    return NextResponse.json(statusResponse)
   } catch (error) {
     console.error("=== STATUS API ERROR ===")
     console.error("Error:", error)
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace")
     console.log("=== STATUS API ERROR END ===\n")
 
-    const errorResponse = NextResponse.json(
-      {
-        error: "Internal server error",
-        message: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 },
-    )
-
-    errorResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
-    errorResponse.headers.set("Pragma", "no-cache")
-    errorResponse.headers.set("Expires", "0")
-
-    return errorResponse
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      message: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
   }
 }
