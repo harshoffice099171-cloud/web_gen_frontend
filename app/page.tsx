@@ -155,104 +155,117 @@ export default function HomePage() {
   }, [jobs])
 
   const pollJobStatus = async (jobId: string) => {
-    if (pollingJobs.has(jobId)) {
-      return
-    }
+  if (pollingJobs.has(jobId)) {
+    return
+  }
 
-    setPollingJobs((prev) => new Set(prev).add(jobId))
+  setPollingJobs((prev) => new Set(prev).add(jobId))
 
-    try {
-      console.log(`Polling status for job: ${jobId}`)
-      const response = await fetch(`/api/status/${jobId}`)
+  try {
+    console.log(`Polling status for job: ${jobId}`)
+    console.log(`API URL: /api/status/${jobId}`)
+    console.log(`Environment: ${process.env.NODE_ENV}`)
+    
+    const response = await fetch(`/api/status/${jobId}`)
+    console.log(`Response status: ${response.status}`)
+    console.log(`Response ok: ${response.ok}`)
 
-      if (response.status === 404) {
-        const data = await response.json()
-        setJobs((prevJobs) =>
-          prevJobs.map((job) =>
-            job.id === jobId
-              ? {
-                  ...job,
-                  status: "NOT_FOUND",
-                  error: data.error,
-                  message: data.message,
-                }
-              : job,
-          ),
-        )
-        console.log(`Job ${jobId} not found in RunPod system`)
-        return
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json()
-
-        setJobs((prevJobs) =>
-          prevJobs.map((job) =>
-            job.id === jobId
-              ? {
-                  ...job,
-                  status: "ERROR",
-                  error: errorData.runpodError || errorData.error,
-                  message: "Failed to get job status",
-                }
-              : job,
-          ),
-        )
-        return
-      }
-
+    if (response.status === 404) {
       const data = await response.json()
-
+      console.log(`404 response data:`, data)
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
           job.id === jobId
             ? {
                 ...job,
-                status: data.status || job.status,
-                output: data.output || job.output,
-                error: undefined,
-                message: undefined,
+                status: "NOT_FOUND",
+                error: data.error,
+                message: data.message,
               }
             : job,
         ),
       )
+      console.log(`Job ${jobId} not found in RunPod system`)
+      return
+    }
 
-      if (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS") {
-        setTimeout(() => {
-          setPollingJobs((prev) => {
-            const newSet = new Set(prev)
-            newSet.delete(jobId)
-            return newSet
-          })
-          pollJobStatus(jobId)
-        }, 5000)
-      } else {
-        setPollingJobs((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(jobId)
-          return newSet
-        })
-      }
-    } catch (error) {
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.log(`Error response data:`, errorData)
+
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
           job.id === jobId
             ? {
                 ...job,
                 status: "ERROR",
-                error: "Network error",
-                message: "Failed to connect to status API",
+                error: errorData.runpodError || errorData.error,
+                message: "Failed to get job status",
               }
             : job,
         ),
       )
+      return
+    }
+
+    const data = await response.json()
+    console.log(`Status response data for ${jobId}:`, data)
+
+    setJobs((prevJobs) =>
+      prevJobs.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              status: data.status || job.status,
+              output: data.output || job.output,
+              error: undefined,
+              message: undefined,
+            }
+          : job,
+      ),
+    )
+
+    console.log(`Job ${jobId} status updated to: ${data.status}`)
+
+    if (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS") {
+      console.log(`Scheduling next poll for ${jobId} in 5 seconds`)
+      setTimeout(() => {
+        setPollingJobs((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(jobId)
+          return newSet
+        })
+        pollJobStatus(jobId)
+      }, 5000)
+    } else {
+      console.log(`Job ${jobId} finished with status: ${data.status}`)
       setPollingJobs((prev) => {
         const newSet = new Set(prev)
         newSet.delete(jobId)
         return newSet
       })
     }
+  } catch (error) {
+    console.error(`Network error polling job ${jobId}:`, error)
+    setJobs((prevJobs) =>
+      prevJobs.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              status: "ERROR",
+              error: "Network error",
+              message: "Failed to connect to status API",
+            }
+          : job,
+      ),
+    )
+    setPollingJobs((prev) => {
+      const newSet = new Set(prev)
+      newSet.delete(jobId)
+      return newSet
+    })
   }
+}
 
   const handleRefreshStatus = (jobId: string) => {
     const job = jobs.find((j) => j.id === jobId)
