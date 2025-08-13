@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Add cache-busting and no-cache headers
-    const response = await fetch(`https://api.runpod.ai/v2/2avss4yt186a6m/status/${id}?_t=${Date.now()}`, {
+    const response = await fetch(`https://api.runpod.ai/v2/m1kiwmukb6m73q/status/${id}?_t=${Date.now()}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${process.env.RUNPOD_API_KEY}`,

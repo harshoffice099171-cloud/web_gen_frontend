@@ -4,7 +4,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const response = await fetch("https://api.runpod.ai/v2/2avss4yt186a6m/run", {
+    const response = await fetch("https://api.runpod.ai/v2/m1kiwmukb6m73q/run", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
