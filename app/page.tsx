@@ -526,32 +526,6 @@ export default function HomePage() {
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="space-y-4">
-                      {job.output?.stats && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                          {job.output.stats.total_slides && (
-                            <div className="text-center p-2 border rounded">
-                              <div className="text-lg font-semibold text-gray-900">{job.output.stats.total_slides}</div>
-                              <div className="text-xs text-gray-600">Total Slides</div>
-                            </div>
-                          )}
-                          {job.output.stats.final_duration && (
-                            <div className="text-center p-2 border rounded">
-                              <div className="text-lg font-semibold text-gray-900">
-                                {job.output.stats.final_duration}
-                              </div>
-                              <div className="text-xs text-gray-600">Duration</div>
-                            </div>
-                          )}
-                          {job.output.stats.final_resolution && (
-                            <div className="text-center p-2 border rounded">
-                              <div className="text-lg font-semibold text-gray-900">
-                                {job.output.stats.final_resolution}
-                              </div>
-                              <div className="text-xs text-gray-600">Resolution</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       {(job.status === "NOT_FOUND" || job.status === "ERROR" || job.status === "FAILED") && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">

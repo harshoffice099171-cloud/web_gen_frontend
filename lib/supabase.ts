@@ -10,7 +10,8 @@ export interface WebinarRequest {
   id: number
   timestamp: string
   run_id: string | null
-  voice_id: string | null
+  voice_audio_type: string | null  // Audio file type (mp3, wav, etc.)
+  voice_audio_size_bytes: number | null  // Audio file size
   output_name: string | null
   lipsync_type: string | null
   video_scale: number | null

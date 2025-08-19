@@ -4,8 +4,9 @@ CREATE TABLE IF NOT EXISTS webinar_requests (
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     run_id TEXT,
     
-    -- Request fields
-    voice_id TEXT,
+    -- Request fields  
+    voice_audio_type TEXT,  -- Changed from voice_id to store audio file type (mp3, wav, etc.)
+    voice_audio_size_bytes INTEGER,  -- Added to track audio file size
     output_name TEXT,
     lipsync_type TEXT,
     video_scale DECIMAL,

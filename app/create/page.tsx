@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,12 +12,7 @@ import { Upload, ArrowLeft, Loader2, Play } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-const VOICE_OPTIONS = [
-  { id: "eA8FmgNe2rjMWPK5PQQZ", name: "Shrikant (Middle aged)" },
-  { id: "KSsyodh37PbfWy29kPtx", name: "Kishan (Young)" },
-  { id: "HSdLdxNgP1KF3yQK3IkB", name: "Vidya (Middle aged)" },
-  { id: "TRnaQb7q41oL7sV0w6Bu", name: "Simran (Young)" },
-]
+// VOICE_OPTIONS removed - now using audio file upload for voice cloning
 
 const VIDEO_OPTIONS = [
   {
@@ -59,18 +54,31 @@ export default function CreatePage() {
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null)
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [formData, setFormData] = useState({
     presentationFile: null as File | null,
     inputVideo: null as File | null,
     selectedVideoId: "",
-    voiceId: "",
+    voiceAudioFile: null as File | null,
     outputName: "",
     videoPosition: "",
     videoScale: "",
   })
 
-  const handleFileChange = (field: "presentationFile" | "inputVideo") => (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Cleanup URLs on component unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (uploadedVideoUrl) {
+        URL.revokeObjectURL(uploadedVideoUrl)
+      }
+      if (uploadedAudioUrl) {
+        URL.revokeObjectURL(uploadedAudioUrl)
+      }
+    }
+  }, [uploadedVideoUrl, uploadedAudioUrl])
+
+  const handleFileChange = (field: "presentationFile" | "inputVideo" | "voiceAudioFile") => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setFormData((prev) => ({ ...prev, [field]: file }))
@@ -85,6 +93,16 @@ export default function CreatePage() {
         setUploadedVideoUrl(videoUrl)
         // Clear selected video when uploading custom video
         setFormData((prev) => ({ ...prev, selectedVideoId: "" }))
+      }
+
+      // Create preview URL for uploaded audio
+      if (field === "voiceAudioFile") {
+        // Clean up previous URL to prevent memory leaks
+        if (uploadedAudioUrl) {
+          URL.revokeObjectURL(uploadedAudioUrl)
+        }
+        const audioUrl = URL.createObjectURL(file)
+        setUploadedAudioUrl(audioUrl)
       }
     }
   }
@@ -152,7 +170,7 @@ export default function CreatePage() {
   }
 
   const handleGenerate = async () => {
-    if (!formData.presentationFile || (!formData.inputVideo && !formData.selectedVideoId) || !formData.voiceId) {
+    if (!formData.presentationFile || (!formData.inputVideo && !formData.selectedVideoId) || !formData.voiceAudioFile) {
       alert("Please fill in all required fields")
       return
     }
@@ -179,15 +197,21 @@ export default function CreatePage() {
         }
       }
 
-      // Prepare input object
-      const inputData: any = {
-        presentation_file: presentationBase64,
-        input_video: videoBase64,
-        voice_id: formData.voiceId,
-        lipsync_type: "mustalk_realtime",
-        presentation_file_type: "pdf",
-        input_video_type: "mp4",
-      }
+              const audioBase64 = await fileToBase64(formData.voiceAudioFile)
+
+        // Get audio file extension for type
+        const audioFileExtension = formData.voiceAudioFile.name.split('.').pop()?.toLowerCase() || 'mp3'
+
+        // Prepare input object
+        const inputData: any = {
+          presentation_file: presentationBase64,
+          input_video: videoBase64,
+          voice_file: audioBase64,
+          lipsync_type: "mustalk_realtime",
+          presentation_file_type: "pdf",
+          input_video_type: "mp4",
+          voice_file_type: audioFileExtension,
+        }
 
       // Add optional fields only if they have values
       if (formData.outputName) {
@@ -285,24 +309,32 @@ export default function CreatePage() {
                 )}
               </div>
 
-              {/* Voice Selection */}
+              {/* Voice Audio Upload */}
               <div className="space-y-2">
-                <Label>Voice Selection *</Label>
-                <Select
-                  value={formData.voiceId}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, voiceId: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOICE_OPTIONS.map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id}>
-                        {voice.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="voice-audio-upload">Voice Audio for Cloning (MP3/WAV) *</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="voice-audio-upload"
+                    type="file"
+                    accept=".mp3,.wav,.m4a"
+                    onChange={handleFileChange("voiceAudioFile")}
+                    className="flex-1"
+                  />
+                  <Upload className="h-5 w-5 text-gray-400" />
+                </div>
+                {formData.voiceAudioFile && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-green-600">✓ {formData.voiceAudioFile.name}</p>
+                    {uploadedAudioUrl && (
+                      <div className="flex items-center gap-2">
+                        <audio controls className="max-w-xs">
+                          <source src={uploadedAudioUrl} type={formData.voiceAudioFile.type} />
+                          Your browser does not support the audio element.
+                        </audio>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Video Input */}
@@ -390,7 +422,7 @@ export default function CreatePage() {
                   isGenerating ||
                   !formData.presentationFile ||
                   (!formData.inputVideo && !formData.selectedVideoId) ||
-                  !formData.voiceId
+                  !formData.voiceAudioFile
                 }
                 className="w-full"
                 size="lg"
