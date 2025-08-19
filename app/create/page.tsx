@@ -12,7 +12,28 @@ import { Upload, ArrowLeft, Loader2, Play } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-// VOICE_OPTIONS removed - now using audio file upload for voice cloning
+const AUDIO_OPTIONS = [
+  {
+    id: "voice_1",
+    name: "kishan",
+    path: "audio/kishan.mp3",
+  },
+  {
+    id: "voice_2", 
+    name: "simran",
+    path: "audio/simran.mp3",
+  },
+  {
+    id: "voice_3",
+    name: "srikant",
+    path: "audio/srikant.mp3",
+  },
+  {
+    id: "voice_4",
+    name: "vidya", 
+    path: "audio/vidya.mp3",
+  },
+]
 
 const VIDEO_OPTIONS = [
   {
@@ -60,6 +81,7 @@ export default function CreatePage() {
     presentationFile: null as File | null,
     inputVideo: null as File | null,
     selectedVideoId: "",
+    selectedAudioId: "",
     voiceAudioFile: null as File | null,
     outputName: "",
     videoPosition: "",
@@ -103,6 +125,8 @@ export default function CreatePage() {
         }
         const audioUrl = URL.createObjectURL(file)
         setUploadedAudioUrl(audioUrl)
+        // Clear selected audio when uploading custom audio
+        setFormData((prev) => ({ ...prev, selectedAudioId: "" }))
       }
     }
   }
@@ -118,6 +142,20 @@ export default function CreatePage() {
       }
       setUploadedVideoUrl(null)
       setFormData((prev) => ({ ...prev, inputVideo: null }))
+    }
+  }
+
+  const handleAudioSelect = (audioId: string) => {
+    setFormData((prev) => ({ ...prev, selectedAudioId: audioId }))
+
+    // Clear uploaded audio when selecting from dropdown
+    if (audioId) {
+      // Clean up previous uploaded audio URL
+      if (uploadedAudioUrl) {
+        URL.revokeObjectURL(uploadedAudioUrl)
+      }
+      setUploadedAudioUrl(null)
+      setFormData((prev) => ({ ...prev, voiceAudioFile: null }))
     }
   }
 
@@ -157,6 +195,32 @@ export default function CreatePage() {
     return "No video selected"
   }
 
+  const getPreviewAudioUrl = () => {
+    // If there's an uploaded audio file, use that
+    if (formData.voiceAudioFile && uploadedAudioUrl) {
+      return uploadedAudioUrl
+    }
+
+    // Otherwise, if there's a selected audio from dropdown, use that
+    if (formData.selectedAudioId && !formData.voiceAudioFile) {
+      const selectedAudio = AUDIO_OPTIONS.find((a) => a.id === formData.selectedAudioId)
+      return selectedAudio?.path || null
+    }
+
+    return null
+  }
+
+  const getPreviewAudioName = () => {
+    if (formData.voiceAudioFile) {
+      return formData.voiceAudioFile.name
+    }
+    if (formData.selectedAudioId) {
+      const selectedAudio = AUDIO_OPTIONS.find((a) => a.id === formData.selectedAudioId)
+      return selectedAudio?.name || "Selected Audio"
+    }
+    return "No audio selected"
+  }
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -170,7 +234,7 @@ export default function CreatePage() {
   }
 
   const handleGenerate = async () => {
-    if (!formData.presentationFile || (!formData.inputVideo && !formData.selectedVideoId) || !formData.voiceAudioFile) {
+    if (!formData.presentationFile || (!formData.inputVideo && !formData.selectedVideoId) || (!formData.voiceAudioFile && !formData.selectedAudioId)) {
       alert("Please fill in all required fields")
       return
     }
@@ -197,10 +261,25 @@ export default function CreatePage() {
         }
       }
 
-              const audioBase64 = await fileToBase64(formData.voiceAudioFile)
-
-        // Get audio file extension for type
-        const audioFileExtension = formData.voiceAudioFile.name.split('.').pop()?.toLowerCase() || 'mp3'
+      let audioBase64: string
+      let audioFileExtension: string
+      if (formData.voiceAudioFile) {
+        // Use uploaded audio
+        audioBase64 = await fileToBase64(formData.voiceAudioFile)
+        audioFileExtension = formData.voiceAudioFile.name.split('.').pop()?.toLowerCase() || 'mp3'
+      } else {
+        // Use selected audio - fetch from path and convert to base64
+        const selectedAudio = AUDIO_OPTIONS.find((a) => a.id === formData.selectedAudioId)
+        if (selectedAudio) {
+          const response = await fetch(selectedAudio.path)
+          const blob = await response.blob()
+          const file = new File([blob], selectedAudio.name, { type: "audio/mp3" })
+          audioBase64 = await fileToBase64(file)
+          audioFileExtension = 'mp3'
+        } else {
+          throw new Error("Selected audio not found")
+        }
+      }
 
         // Prepare input object
         const inputData: any = {
@@ -309,26 +388,48 @@ export default function CreatePage() {
                 )}
               </div>
 
-              {/* Voice Audio Upload */}
+              {/* Voice Audio Input */}
               <div className="space-y-2">
-                <Label htmlFor="voice-audio-upload">Voice Audio for Cloning (MP3/WAV) *</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="voice-audio-upload"
-                    type="file"
-                    accept=".mp3,.wav,.m4a"
-                    onChange={handleFileChange("voiceAudioFile")}
-                    className="flex-1"
+                <Label>Voice Audio for Cloning *</Label>
+                <Select value={formData.selectedAudioId} onValueChange={handleAudioSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select voice audio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AUDIO_OPTIONS.map((audio) => (
+                      <SelectItem key={audio.id} value={audio.id}>
+                        {audio.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-4 mt-2">
+                  <Input 
+                    type="file" 
+                    accept=".mp3,.wav,.m4a" 
+                    onChange={handleFileChange("voiceAudioFile")} 
+                    className="flex-1" 
                   />
                   <Upload className="h-5 w-5 text-gray-400" />
                 </div>
-                {formData.voiceAudioFile && (
+                {formData.voiceAudioFile && <p className="text-sm text-green-600">✓ {formData.voiceAudioFile.name}</p>}
+                {formData.selectedAudioId && !formData.voiceAudioFile && (
+                  <p className="text-sm text-blue-600">
+                    ✓ Selected: {AUDIO_OPTIONS.find((a) => a.id === formData.selectedAudioId)?.name}
+                  </p>
+                )}
+                
+                {/* Audio Preview */}
+                {(formData.voiceAudioFile || formData.selectedAudioId) && (
                   <div className="space-y-2">
-                    <p className="text-sm text-green-600">✓ {formData.voiceAudioFile.name}</p>
-                    {uploadedAudioUrl && (
+                    {getPreviewAudioUrl() && (
                       <div className="flex items-center gap-2">
-                        <audio controls className="max-w-xs">
-                          <source src={uploadedAudioUrl} type={formData.voiceAudioFile.type} />
+                        <audio 
+                          key={`${formData.selectedAudioId}-${formData.voiceAudioFile?.name || 'none'}`}
+                          controls 
+                          className="max-w-xs"
+                          src={getPreviewAudioUrl()!}
+                        >
                           Your browser does not support the audio element.
                         </audio>
                       </div>
@@ -422,7 +523,7 @@ export default function CreatePage() {
                   isGenerating ||
                   !formData.presentationFile ||
                   (!formData.inputVideo && !formData.selectedVideoId) ||
-                  !formData.voiceAudioFile
+                  (!formData.voiceAudioFile && !formData.selectedAudioId)
                 }
                 className="w-full"
                 size="lg"
