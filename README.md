@@ -1,30 +1,48 @@
-# Webinar generator project
+# PDF Script Generator
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+This Next.js application allows you to upload PDF files, extract text content, and generate natural-sounding scripts using Google's Gemini AI. The generated scripts can be edited and customized for each slide.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/harshoffice099171-9515s-projects/v0-webinar-generator-project)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/6jejxufEp9N)
+## Features
 
-## Overview
+- PDF file upload and text extraction
+- Automatic script generation using Gemini AI
+- Slide-by-slide script editing interface
+- Estimated duration calculation for each script
+- Modern, responsive UI with Tailwind CSS
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## Setup
 
-## Deployment
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Your project is live at:
+3. Create a `.env.local` file in the root directory with your Gemini API key:
+   ```
+   NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
+   ```
 
-**[https://vercel.com/harshoffice099171-9515s-projects/v0-webinar-generator-project](https://vercel.com/harshoffice099171-9515s-projects/v0-webinar-generator-project)**
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-## Build your app
+5. Open [http://localhost:3000/script-generator](http://localhost:3000/script-generator) in your browser
 
-Continue building your app on:
+## Usage
 
-**[https://v0.dev/chat/projects/6jejxufEp9N](https://v0.dev/chat/projects/6jejxufEp9N)**
+1. Click the upload area or drag and drop a PDF file
+2. Wait for the text extraction and script generation to complete
+3. Navigate between slides using the tabs at the top
+4. Edit the generated scripts in the text area on the right
+5. View the estimated duration for each script
 
-## How It Works
+## Technologies Used
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- Next.js 14
+- TypeScript
+- PDF.js for PDF text extraction
+- Google Generative AI (Gemini) for script generation
+- Radix UI for accessible components
+- Tailwind CSS for styling

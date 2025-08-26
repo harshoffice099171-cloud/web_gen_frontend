@@ -8,9 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, ArrowLeft, Loader2, Play } from "lucide-react"
+import { Upload, ArrowLeft, Loader2, Play, Edit2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import * as Tabs from '@radix-ui/react-tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+// Add at the top of the file, after imports
+declare global {
+  interface Window {
+    pdfjsLib: any;
+  }
+}
 
 const AUDIO_OPTIONS = [
   {
@@ -71,6 +80,14 @@ const SCALE_OPTIONS = [
   { value: "0.35", label: "0.35 (Large)" },
 ]
 
+interface SlideContent {
+  slideNumber: number;
+  title: string;
+  content: string;
+  script: string;
+  estimatedDuration: number;
+}
+
 export default function CreatePage() {
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
@@ -87,6 +104,10 @@ export default function CreatePage() {
     videoPosition: "",
     videoScale: "",
   })
+  const [slides, setSlides] = useState<SlideContent[]>([]);
+  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [showScriptEditor, setShowScriptEditor] = useState(false);
 
   // Cleanup URLs on component unmount to prevent memory leaks
   useEffect(() => {
@@ -100,10 +121,77 @@ export default function CreatePage() {
     }
   }, [uploadedVideoUrl, uploadedAudioUrl])
 
-  const handleFileChange = (field: "presentationFile" | "inputVideo" | "voiceAudioFile") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  // Function to handle PDF processing
+  const handlePdfProcessing = async (file: File) => {
+    setIsProcessingPdf(true);
+    try {
+      // Load PDF.js from CDN if not loaded
+      if (typeof window.pdfjsLib === 'undefined') {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
+          script.onload = () => {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+            resolve();
+          };
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const extractedSlides: SlideContent[] = [];
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const text = textContent.items
+          .map((item: any) => item.str)
+          .join(' ')
+          .trim();
+
+        const lines = text.split('\n');
+        const title = lines[0] || `Slide ${i}`;
+        const content = lines.slice(1).join('\n') || text;
+
+        // Generate script using Gemini
+        const script = await generateScript({
+          slideNumber: i,
+          title,
+          content,
+          script: '',
+          estimatedDuration: 0
+        });
+
+        extractedSlides.push({
+          slideNumber: i,
+          title: title.length > 100 ? title.slice(0, 100) + '...' : title,
+          content,
+          script,
+          estimatedDuration: estimateDuration(script)
+        });
+      }
+
+      setSlides(extractedSlides);
+      setShowScriptEditor(true);
+    } catch (error) {
+      console.error('Error processing PDF:', error);
+      alert('Error processing PDF file. Please try again.');
+    } finally {
+      setIsProcessingPdf(false);
+    }
+  };
+
+  // Modified handleFileChange to include PDF processing
+  const handleFileChange = (field: "presentationFile" | "inputVideo" | "voiceAudioFile") => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
-      setFormData((prev) => ({ ...prev, [field]: file }))
+      setFormData((prev) => ({ ...prev, [field]: file }));
+
+      if (field === "presentationFile" && file.type === "application/pdf") {
+        await handlePdfProcessing(file);
+      }
 
       // Create preview URL for uploaded video
       if (field === "inputVideo") {
@@ -233,6 +321,47 @@ export default function CreatePage() {
     })
   }
 
+  // Function to generate script using Gemini
+  const generateScript = async (slide: SlideContent): Promise<string> => {
+    try {
+      const response = await fetch('/api/generate-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          slideNumber: slide.slideNumber,
+          title: slide.title,
+          content: slide.content
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate script');
+      const data = await response.json();
+      return data.script;
+    } catch (error) {
+      console.error('Error generating script:', error);
+      return slide.content || `This is slide ${slide.slideNumber}`;
+    }
+  };
+
+  // Function to estimate duration
+  const estimateDuration = (text: string): number => {
+    const wordCount = text.split(/\s+/).length;
+    return Math.max(2.0, (wordCount / 150) * 60);
+  };
+
+  // Function to handle script edit
+  const handleScriptEdit = (slideIndex: number, newScript: string) => {
+    setSlides(prevSlides =>
+      prevSlides.map((slide, index) =>
+        index === slideIndex
+          ? { ...slide, script: newScript, estimatedDuration: estimateDuration(newScript) }
+          : slide
+      )
+    );
+  };
+
   const handleGenerate = async () => {
     if (!formData.presentationFile || (!formData.inputVideo && !formData.selectedVideoId) || (!formData.voiceAudioFile && !formData.selectedAudioId)) {
       alert("Please fill in all required fields")
@@ -281,16 +410,24 @@ export default function CreatePage() {
         }
       }
 
-        // Prepare input object
-        const inputData: any = {
-          presentation_file: presentationBase64,
-          input_video: videoBase64,
-          voice_file: audioBase64,
-          lipsync_type: "mustalk_realtime",
-          presentation_file_type: "pdf",
-          input_video_type: "mp4",
-          voice_file_type: audioFileExtension,
-        }
+      // Prepare input object
+      const inputData: any = {
+        presentation_file: presentationBase64,
+        input_video: videoBase64,
+        voice_file: audioBase64,
+        lipsync_type: "mustalk_realtime",
+        presentation_file_type: "pdf",
+        input_video_type: "mp4",
+        voice_file_type: audioFileExtension,
+        // Include generated and edited scripts
+        slides: slides.map(slide => ({
+          slideNumber: slide.slideNumber,
+          title: slide.title,
+          content: slide.content,
+          script: slide.script,
+          estimatedDuration: slide.estimatedDuration
+        }))
+      }
 
       // Add optional fields only if they have values
       if (formData.outputName) {
@@ -342,6 +479,7 @@ export default function CreatePage() {
         alert("Failed to create job. Please try again.")
       }
     } catch (error) {
+      console.error('Error:', error);
       alert("An error occurred. Please try again.")
     } finally {
       setIsGenerating(false)
@@ -380,11 +518,25 @@ export default function CreatePage() {
                     accept=".pdf"
                     onChange={handleFileChange("presentationFile")}
                     className="flex-1"
+                    disabled={isProcessingPdf}
                   />
                   <Upload className="h-5 w-5 text-gray-400" />
                 </div>
-                {formData.presentationFile && (
-                  <p className="text-sm text-green-600">✓ {formData.presentationFile.name}</p>
+                {isProcessingPdf && (
+                  <p className="text-sm text-blue-600">Processing PDF and generating scripts...</p>
+                )}
+                {formData.presentationFile && slides.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-green-600">✓ {formData.presentationFile.name}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowScriptEditor(true)}
+                    >
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      Edit Scripts
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -585,6 +737,76 @@ export default function CreatePage() {
           </Card>
         </div>
       </div>
+
+      {/* Add Script Editor Dialog */}
+      <Dialog open={showScriptEditor} onOpenChange={setShowScriptEditor}>
+        <DialogContent className="max-w-4xl h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Presentation Scripts</DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex flex-col h-full overflow-hidden">
+            <Tabs.Root
+              value={currentSlide.toString()}
+              onValueChange={(value) => setCurrentSlide(parseInt(value))}
+            >
+              <Tabs.List className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+                {slides.map((slide, index) => (
+                  <Tabs.Trigger
+                    key={index}
+                    value={index.toString()}
+                    className="px-4 py-2 rounded-t-lg border-b-2 data-[state=active]:border-blue-500"
+                  >
+                    Slide {slide.slideNumber}
+                  </Tabs.Trigger>
+                ))}
+              </Tabs.List>
+
+              {slides.map((slide, index) => (
+                <Tabs.Content
+                  key={index}
+                  value={index.toString()}
+                  className="outline-none flex-1 overflow-auto"
+                >
+                  <div className="grid grid-cols-2 gap-4 h-full">
+                    <div className="space-y-4">
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold mb-2">Title</h3>
+                        <p>{slide.title}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold mb-2">Content</h3>
+                        <p className="whitespace-pre-wrap">{slide.content}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-gray-50 rounded-lg h-full">
+                        <h3 className="font-semibold mb-2">Generated Script</h3>
+                        <textarea
+                          value={slide.script}
+                          onChange={(e) => handleScriptEdit(index, e.target.value)}
+                          className="w-full h-[calc(100%-2rem)] p-2 border rounded-lg"
+                          placeholder="Generated script will appear here..."
+                        />
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold mb-2">Estimated Duration</h3>
+                        <p>{slide.estimatedDuration.toFixed(1)} seconds</p>
+                      </div>
+                    </div>
+                  </div>
+                </Tabs.Content>
+              ))}
+            </Tabs.Root>
+
+            <div className="flex justify-end mt-4 pt-4 border-t">
+              <Button onClick={() => setShowScriptEditor(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
