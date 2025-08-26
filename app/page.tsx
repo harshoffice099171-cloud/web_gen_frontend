@@ -20,23 +20,36 @@ import Link from "next/link"
 import { supabase, type WebinarRequest } from "@/lib/supabase"
 
 interface Job {
-  id: string
-  status: string
+  id: string;
+  status: string;
   output?: {
-    final_video_s3_url?: string
-    final_video_presigned_url?: string
-    success?: boolean
+    final_video_s3_url?: string;
+    final_video_presigned_url?: string;
+    success?: boolean;
     stats?: {
-      final_duration?: string
-      final_resolution?: string
-      total_slides?: number
-    }
-  }
-  createdAt: string
-  outputName?: string
-  error_message?: string
-  source?: "localStorage" | "supabase"
-  supabaseData?: WebinarRequest
+      final_duration?: string;
+      final_resolution?: string;
+      total_slides?: number;
+    };
+  };
+  createdAt: string;
+  outputName?: string;
+  error?: string;
+  message?: string;
+  source: "localStorage" | "supabase";
+  supabaseData?: WebinarRequest;
+}
+
+interface SupabaseJob extends Job {
+  user_id?: string;
+  input?: any;
+  webhook_called?: boolean;
+  webhook_status?: string;
+  webhook_timestamp?: string;
+}
+
+interface LocalJob extends Job {
+  lastChecked?: string;
 }
 
 export default function HomePage() {
@@ -99,7 +112,7 @@ export default function HomePage() {
         const localJobIds = new Set(localStorageJobs.map((job) => job.id))
 
         // Add Supabase jobs that don't conflict with localStorage jobs
-        const filteredSupabaseJobs = supabaseJobs.filter((supabaseJob) => !localJobIds.has(supabaseJob.id))
+        const filteredSupabaseJobs = supabaseJobs.filter((supabaseJob: SupabaseJob) => !localJobIds.has(supabaseJob.id));
 
         return [...localStorageJobs, ...filteredSupabaseJobs]
       })
@@ -130,7 +143,7 @@ export default function HomePage() {
       const allJobs = [...localStorageJobs]
       const localJobIds = new Set(localStorageJobs.map((job) => job.id))
 
-      supabaseJobs.forEach((supabaseJob) => {
+      supabaseJobs.forEach((supabaseJob: Job) => {
         if (!localJobIds.has(supabaseJob.id)) {
           allJobs.push(supabaseJob)
         }
