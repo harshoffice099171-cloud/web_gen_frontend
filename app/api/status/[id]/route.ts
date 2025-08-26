@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params
+
+  // Validate job ID format
+  if (!id || id.trim() === "") {
+    return NextResponse.json({ error: "Invalid job ID" }, { status: 400 })
+  }
+
   try {
-    const { id } = params
-
-    // Validate job ID format
-    if (!id || id.trim() === "") {
-      return NextResponse.json({ error: "Invalid job ID" }, { status: 400 })
-    }
-
     // Add cache-busting and no-cache headers
     const response = await fetch(`https://api.runpod.ai/v2/m1kiwmukb6m73q/status/${id}?_t=${Date.now()}`, {
       method: "GET",
