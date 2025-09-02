@@ -71,7 +71,10 @@ const POSITION_OPTIONS = [
   { value: "top-right", label: "Top Right" },
   { value: "top-left", label: "Top Left" },
   { value: "bottom-right", label: "Bottom Right" },
-  { value: "bottom-left", label: "Bottom Left" },
+  { value: "video-left", label: "Left" },
+  { value: "video-right", label: "Right" },
+  { value: "video-top", label: "Top" },
+  { value: "video-bottom", label: "Bottom" }
 ]
 
 const SCALE_OPTIONS = [
